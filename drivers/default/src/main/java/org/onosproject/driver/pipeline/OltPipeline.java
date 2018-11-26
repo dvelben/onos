@@ -44,14 +44,7 @@ import org.onosproject.net.flow.FlowRuleOperationsContext;
 import org.onosproject.net.flow.FlowRuleService;
 import org.onosproject.net.flow.TrafficSelector;
 import org.onosproject.net.flow.TrafficTreatment;
-import org.onosproject.net.flow.criteria.Criteria;
-import org.onosproject.net.flow.criteria.Criterion;
-import org.onosproject.net.flow.criteria.EthTypeCriterion;
-import org.onosproject.net.flow.criteria.IPCriterion;
-import org.onosproject.net.flow.criteria.IPProtocolCriterion;
-import org.onosproject.net.flow.criteria.PortCriterion;
-import org.onosproject.net.flow.criteria.UdpPortCriterion;
-import org.onosproject.net.flow.criteria.VlanIdCriterion;
+import org.onosproject.net.flow.criteria.*;
 import org.onosproject.net.flow.instructions.Instruction;
 import org.onosproject.net.flow.instructions.Instructions;
 import org.onosproject.net.flow.instructions.L2ModificationInstruction;
@@ -428,11 +421,21 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         Criterion outerVlan = selector.getCriterion(Criterion.Type.VLAN_VID);
         Criterion innerVlan = selector.getCriterion(Criterion.Type.INNER_VLAN_VID);
         Criterion inport = selector.getCriterion(Criterion.Type.IN_PORT);
+        // MWC-2019 Demo. Bandwidth in metadata field from App
+        Criterion bandwidth = selector.getCriterion(Criterion.Type.METADATA);
 
         long cvid = ((VlanIdCriterion) innerVlan).vlanId().toShort();
         long outPort = output.port().toLong() & 0x0FFFFFFFFL;
+        long bw = 0;
+        if (bandwidth != null) {
+            bw = ((MetadataCriterion)bandwidth).metadata();
+            log.info("Upstream Bandwidth: {}", bw);
+        } else {
+            log.info("NO Upstream Bandwidth Specified");
+        }
 
-        Criterion metadata = Criteria.matchMetadata((cvid << 32) | outPort);
+        Criterion metadata = Criteria.matchMetadata((bw << (12 + 32)) | (cvid << 32) | outPort);
+        log.info("Upstream Metadata: {}", (bw << (12 + 32)) | (cvid << 32) | outPort);
 
         if (outerVlan == null || innerVlan == null || inport == null) {
             log.error("Forwarding objective is underspecified: {}", fwd);
@@ -481,7 +484,6 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         }
 
         Pair<Instruction, Instruction> innerPair = vlanOps.remove(0);
-
         Pair<Instruction, Instruction> outerPair = vlanOps.remove(0);
 
         // Add the VLAN_PUSH treatment if we're matching on VlanId.NONE
