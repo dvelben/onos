@@ -421,7 +421,8 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         Criterion outerVlan = selector.getCriterion(Criterion.Type.VLAN_VID);
         Criterion innerVlan = selector.getCriterion(Criterion.Type.INNER_VLAN_VID);
         Criterion inport = selector.getCriterion(Criterion.Type.IN_PORT);
-        // MWC-2019 Demo. Bandwidth in metadata field from App
+
+        // MWC-2019 Demo. Bandwidth in metadata field from OLT App (it is optional in app)
         Criterion bandwidth = selector.getCriterion(Criterion.Type.METADATA);
 
         long cvid = ((VlanIdCriterion) innerVlan).vlanId().toShort();
@@ -429,9 +430,9 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         long bw = 0;
         if (bandwidth != null) {
             bw = ((MetadataCriterion)bandwidth).metadata();
-            log.info("Upstream Bandwidth: {}", bw);
+            log.info("Downstream Bandwidth: {} Mbps", bw);
         } else {
-            log.info("NO Upstream Bandwidth Specified");
+            log.info("NO Downstream Bandwidth Specified");
         }
 
         Criterion metadata = Criteria.matchMetadata((bw << (12 + 32)) | (cvid << 32) | outPort);
@@ -492,6 +493,16 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         if (vlanMatchCriterion != null) {
             push = ((VlanIdCriterion) vlanMatchCriterion).vlanId().equals(VlanId.NONE);
         }
+        // MWC-2019 Demo. Bandwidth in metadata field from OLT App (it is optional in app)
+        Criterion bandwidth = fwd.selector().getCriterion(Criterion.Type.METADATA);
+
+        long bw = 0;
+        if (bandwidth != null) {
+            bw = ((MetadataCriterion)bandwidth).metadata();
+            log.info("Upstream Bandwidth: {} Mbps", bw);
+        } else {
+            log.info("NO Upstream Bandwidth Specified");
+        }
 
         TrafficTreatment treatment;
         if (push) {
@@ -515,17 +526,23 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         VlanId cVlanId = ((L2ModificationInstruction.ModVlanIdInstruction)
                 innerPair.getRight()).vlanId();
 
+        TrafficSelector tSelector;
+        if (bandwidth != null) {
+            Criterion metadata = Criteria.matchMetadata(bw);
+            tSelector = buildSelector(inPort, Criteria.matchVlanId(cVlanId), metadata);
+        } else {
+            tSelector = buildSelector(inPort, Criteria.matchVlanId(cVlanId));
+        }
         FlowRule.Builder outer = DefaultFlowRule.builder()
                 .fromApp(fwd.appId())
                 .forDevice(deviceId)
                 .forTable(QQ_TABLE)
                 .makePermanent()
                 .withPriority(fwd.priority())
-                .withSelector(buildSelector(inPort,
-                                            Criteria.matchVlanId(cVlanId)))
+                .withSelector(tSelector)
                 .withTreatment(buildTreatment(outerPair.getLeft(),
-                                              outerPair.getRight(),
-                                              output));
+                        outerPair.getRight(),
+                        output));
 
         applyRules(fwd, inner, outer);
 
