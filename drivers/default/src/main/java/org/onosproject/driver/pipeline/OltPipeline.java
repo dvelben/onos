@@ -430,13 +430,13 @@ public class OltPipeline extends AbstractHandlerBehaviour implements Pipeliner {
         long bw = 0;
         if (bandwidth != null) {
             bw = ((MetadataCriterion)bandwidth).metadata();
-            log.info("Downstream Bandwidth: {} Mbps", bw);
+            log.info("Downstream Metadata: {} Mbps", bw);
         } else {
-            log.info("NO Downstream Bandwidth Specified");
+            log.info("NO Downstream Metadata Specified");
         }
 
-        Criterion metadata = Criteria.matchMetadata((bw << (12 + 32)) | (cvid << 32) | outPort);
-        log.info("Downstream Metadata: {}", (bw << (12 + 32)) | (cvid << 32) | outPort);
+        Criterion metadata = Criteria.matchMetadata(bw);
+        log.info("Downstream Metadata: {}", bw);
 
         if (outerVlan == null || innerVlan == null || inport == null) {
             log.error("Forwarding objective is underspecified: {}", fwd);
